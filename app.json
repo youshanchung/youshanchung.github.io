@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Free HIIT Timer",
+    "slug": "home-grown-hiit-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#5BE3A8"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.homegrown.hiittimer",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "com.homegrown.hiittimer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#3FCB9A"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "HIIT Timer",
+      "shortName": "HIIT Timer",
+      "themeColor": "#3FCB9A",
+      "backgroundColor": "#5BE3A8",
+      "display": "standalone"
+    }
+  }
+}
