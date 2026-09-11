@@ -88,20 +88,28 @@ export async function configureAudio() {
 }
 
 /**
- * Play every cue once, silently, right now. Browsers only allow audio
- * playback that's triggered by (or very close to) a real user tap — calling
- * this from the "Start" button's onPress unlocks all 8 clips for the rest of
- * the workout, before the timer starts calling them on its own.
+ * Play every cue once, right now, then immediately stop it. Browsers only
+ * allow audio playback triggered by (or very close to) a real user tap —
+ * calling this from the "Start" button's onPress is meant to unlock all 8
+ * clips for the rest of the workout, before the timer starts calling them on
+ * its own.
+ *
+ * Every element's play() call must fire in the *same tick* as the tap, with
+ * nothing else awaited first: iOS Safari only durably unlocks an audio
+ * element if its first play() lands within the real gesture, and each
+ * `await` before that call pushes it further away and risks losing the
+ * unlock entirely. An earlier version primed sounds one at a time in a loop
+ * (mute → replay → stop → unmute, each awaited) — by the last few sounds in
+ * that chain, several awaited round-trips had already passed since the tap,
+ * so only the first one or two ever actually unlocked on real iOS Safari
+ * (Chromium's autoplay policy is far more lenient and didn't expose this).
  */
 export async function primeAudio() {
   try {
     await ensureSoundsLoaded();
-    for (const s of soundCache.values()) {
-      await s.setVolumeAsync(0);
-      await s.replayAsync();
-      await s.stopAsync();
-      await s.setVolumeAsync(1);
-    }
+    const sounds = Array.from(soundCache.values());
+    await Promise.all(sounds.map((s) => s.replayAsync().catch(() => {})));
+    await Promise.all(sounds.map((s) => s.stopAsync().catch(() => {})));
   } catch {
     // not fatal — worst case, cues stay silent on a strict browser
   }
