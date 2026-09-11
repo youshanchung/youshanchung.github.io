@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
@@ -14,6 +14,7 @@ import { fmtMMSS } from '@/utils/format';
 import { t } from '@/i18n/strings';
 import { useSettings } from '@/state/settingsStore';
 import { useEngine } from '@/state/timerEngine';
+import { confirmAsync } from '@/utils/alerts';
 import type { RootStackParamList } from '../../App';
 
 type PhaseKey = 'prepare' | 'work' | 'rest';
@@ -87,13 +88,30 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
     else useEngine.getState().resume();
   };
 
+  const onQuit = async () => {
+    const confirmed = await confirmAsync(
+      t('quitTitle', lang),
+      t('quitBody', lang),
+      t('quit', lang),
+      t('cancel', lang)
+    );
+    if (confirmed) {
+      useEngine.getState().reset();
+      nav.navigate('Setup');
+    }
+  };
+
   return (
     <LinearGradient colors={theme.gradient} style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <View style={styles.header}>
+          <Pressable onPress={onQuit} hitSlop={10}>
+            <Text style={[styles.quitIcon, { color: theme.text }]}>✕</Text>
+          </Pressable>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
             {t(themeKey === 'prepare' ? 'prepare' : themeKey === 'work' ? 'work' : 'rest', lang)}
           </Text>
+          <Text style={[styles.quitIcon, { opacity: 0 }]}>✕</Text>
         </View>
 
         {themeKey === 'prepare' ? (
@@ -213,8 +231,15 @@ function currentExerciseNumber(
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: Spacing.sm, alignItems: 'center' },
+  header: {
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerTitle: { fontSize: 22, fontWeight: '600' },
+  quitIcon: { fontSize: 20, fontWeight: '600', width: 24, textAlign: 'center' },
   topRow: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.md,

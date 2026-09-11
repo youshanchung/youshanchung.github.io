@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import { useSettings } from '@/state/settingsStore';
 import { useWorkout } from '@/state/workoutStore';
 import { useEngine, totalSeconds, buildSchedule } from '@/state/timerEngine';
 import { primeAudio } from '@/audio/beeps';
+import { alertAsync } from '@/utils/alerts';
 import { fmtMMSS } from '@/utils/format';
 import type { RootStackParamList } from '../../App';
 
@@ -52,7 +52,7 @@ export default function SetupScreen() {
     // the audio unlock with this user gesture, before any other await runs.
     primeAudio();
     if (workout.exercises.length === 0) {
-      Alert.alert(
+      alertAsync(
         lang === 'zh' ? '無運動項目' : 'No exercises',
         lang === 'zh' ? '請先新增至少一項運動。' : 'Please add at least one exercise.'
       );
@@ -88,7 +88,7 @@ export default function SetupScreen() {
           onPress={async () => {
             const ok = await loadFromStorage();
             if (!ok) {
-              Alert.alert(
+              alertAsync(
                 lang === 'zh' ? '尚無紀錄' : 'Nothing saved',
                 lang === 'zh' ? '還沒有儲存過鍛鍊。' : 'No previous workout saved yet.'
               );

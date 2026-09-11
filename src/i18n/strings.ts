@@ -26,6 +26,9 @@ const dict = {
   next:            { zh: '接下來:',             en: 'Next:' },
   pauseOnLeave:    { zh: '如果我離開本 app 就暫停鍛鍊', en: 'Pause workout if I leave the app' },
   totalRemaining:  { zh: '剩餘總時間',          en: 'Total remaining' },
+  quitTitle:       { zh: '結束鍛鍊？',          en: 'Quit workout?' },
+  quitBody:        { zh: '目前進度將不會保留。', en: 'Your progress on this run won’t be saved.' },
+  quit:            { zh: '結束',                en: 'Quit' },
 
   editExercises:   { zh: '編輯運動清單',        en: 'Edit Exercises' },
   exerciseName:    { zh: '名稱',                en: 'Name' },
