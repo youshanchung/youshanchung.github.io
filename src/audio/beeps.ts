@@ -1,37 +1,72 @@
 /**
- * Audio + haptic cue manager.
+ * Voice cue manager.
  *
- * Haptics (expo-haptics) give tactile feedback on native iOS/Android, but are
- * a silent no-op on web — there's no vibration API exposed to browsers. So we
- * also play short synthesized beep tones (assets/sounds/*.wav) via expo-av,
- * which works on native *and* web (backed by an HTMLAudioElement there).
+ * Four workout milestones each get a short pre-recorded human-voice line, in
+ * both languages (assets/sounds/*.wav — synthesized once via Windows SAPI,
+ * female voices: Zira for English, Hanhan for Traditional Chinese):
+ *   - beforeStart: "Three, two, one, go!" — last 3s before any 'work' phase
+ *   - halfway:     "Halfway there."       — once, at 50% of total workout time
+ *   - beforeRest:  "Three, two, one, rest!" — last 3s before 'rest'/'cycleRest'
+ *   - finished:    "Workout finished."    — once, when the schedule ends
+ *
+ * Haptics still fire alongside on native (silent no-op on web, same as
+ * before — there's no vibration API exposed to browsers).
  */
 
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import type { Lang } from '@/i18n/strings';
+
+type CueKey = 'beforeStart' | 'halfway' | 'beforeRest' | 'finished';
+
+// Metro needs `require()` calls to look statically resolvable, so this can't
+// be built from a template string — spell out all 8 explicitly.
+const CUE_FILES: Record<CueKey, Record<Lang, number>> = {
+  beforeStart: {
+    en: require('../../assets/sounds/before_start_en.wav'),
+    zh: require('../../assets/sounds/before_start_zh.wav'),
+  },
+  halfway: {
+    en: require('../../assets/sounds/halfway_en.wav'),
+    zh: require('../../assets/sounds/halfway_zh.wav'),
+  },
+  beforeRest: {
+    en: require('../../assets/sounds/before_rest_en.wav'),
+    zh: require('../../assets/sounds/before_rest_zh.wav'),
+  },
+  finished: {
+    en: require('../../assets/sounds/finished_en.wav'),
+    zh: require('../../assets/sounds/finished_zh.wav'),
+  },
+};
 
 let audioModeConfigured = false;
-let tickSound: Audio.Sound | null = null;
-let phaseSound: Audio.Sound | null = null;
-let loadingSounds: Promise<void> | null = null;
+const soundCache = new Map<string, Audio.Sound>(); // key: `${cue}:${lang}`
+let loadingAll: Promise<void> | null = null;
+
+function cacheKey(cue: CueKey, lang: Lang) {
+  return `${cue}:${lang}`;
+}
 
 async function ensureSoundsLoaded() {
-  if (tickSound && phaseSound) return;
-  if (!loadingSounds) {
-    loadingSounds = (async () => {
-      try {
-        const [{ sound: t }, { sound: p }] = await Promise.all([
-          Audio.Sound.createAsync(require('../../assets/sounds/tick.wav')),
-          Audio.Sound.createAsync(require('../../assets/sounds/phasechange.wav')),
-        ]);
-        tickSound = t;
-        phaseSound = p;
-      } catch {
-        // Sound files failed to load (e.g. unsupported platform) — haptics-only fallback remains.
-      }
-    })();
-  }
-  await loadingSounds;
+  if (loadingAll) return loadingAll;
+  loadingAll = (async () => {
+    const cues = Object.keys(CUE_FILES) as CueKey[];
+    const langs: Lang[] = ['en', 'zh'];
+    await Promise.all(
+      cues.flatMap((cue) =>
+        langs.map(async (lang) => {
+          try {
+            const { sound } = await Audio.Sound.createAsync(CUE_FILES[cue][lang]);
+            soundCache.set(cacheKey(cue, lang), sound);
+          } catch {
+            // That one clip stays silent; the rest still work.
+          }
+        })
+      )
+    );
+  })();
+  return loadingAll;
 }
 
 export async function configureAudio() {
@@ -53,42 +88,39 @@ export async function configureAudio() {
 }
 
 /**
- * Play each cue's sound once, silently, right now. Browsers only allow audio
+ * Play every cue once, silently, right now. Browsers only allow audio
  * playback that's triggered by (or very close to) a real user tap — calling
- * this from the "Start" button's onPress unlocks both sounds for the rest of
- * the workout, before the timer starts calling them on its own from timers.
+ * this from the "Start" button's onPress unlocks all 8 clips for the rest of
+ * the workout, before the timer starts calling them on its own.
  */
 export async function primeAudio() {
   try {
     await ensureSoundsLoaded();
-    for (const s of [tickSound, phaseSound]) {
-      if (!s) continue;
+    for (const s of soundCache.values()) {
       await s.setVolumeAsync(0);
       await s.replayAsync();
       await s.stopAsync();
       await s.setVolumeAsync(1);
     }
   } catch {
-    // not fatal — worst case, sounds stay silent on a strict browser
+    // not fatal — worst case, cues stay silent on a strict browser
   }
 }
 
-/** Short tick on the final 3 seconds of a phase. */
-export async function tickCue() {
-  try {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  } catch {}
-  try {
-    await tickSound?.replayAsync();
-  } catch {}
-}
-
-/** Distinct cue when a phase changes (work→rest, etc.). */
-export async function phaseChangeCue() {
+async function playCue(cue: CueKey, lang: Lang) {
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   } catch {}
   try {
-    await phaseSound?.replayAsync();
+    await soundCache.get(cacheKey(cue, lang))?.replayAsync();
   } catch {}
 }
+
+/** Last 3 seconds before a 'work' phase starts (first exercise, or any exercise after a rest). */
+export const playBeforeStartCue = (lang: Lang) => playCue('beforeStart', lang);
+/** Once, when total elapsed time crosses 50% of the whole workout. */
+export const playHalfwayCue = (lang: Lang) => playCue('halfway', lang);
+/** Last 3 seconds before a 'rest' or 'cycleRest' phase starts. */
+export const playBeforeRestCue = (lang: Lang) => playCue('beforeRest', lang);
+/** Once, when the entire schedule (all cycles) completes. */
+export const playFinishedCue = (lang: Lang) => playCue('finished', lang);

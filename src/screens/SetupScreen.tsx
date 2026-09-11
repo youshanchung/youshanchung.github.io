@@ -71,10 +71,10 @@ export default function SetupScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerRow}>
             <Pressable onPress={toggleLang} hitSlop={10}>
-              <Text style={styles.menu}>≡</Text>
+              <Text style={styles.menu}>🌐</Text>
             </Pressable>
             <Text style={styles.headerTitle}>{t('appTitle', lang)}</Text>
-            <Text style={[styles.menu, { opacity: 0 }]}>≡</Text>
+            <Text style={[styles.menu, { opacity: 0 }]}>🌐</Text>
           </View>
           <Text style={styles.headerTime}>{fmtMMSS(total)}</Text>
         </SafeAreaView>

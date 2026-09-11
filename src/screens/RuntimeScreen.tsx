@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +14,6 @@ import { fmtMMSS } from '@/utils/format';
 import { t } from '@/i18n/strings';
 import { useSettings } from '@/state/settingsStore';
 import { useEngine } from '@/state/timerEngine';
-import { configureAudio, tickCue, phaseChangeCue } from '@/audio/beeps';
 import type { RootStackParamList } from '../../App';
 
 type PhaseKey = 'prepare' | 'work' | 'rest';
@@ -40,7 +39,6 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
   const nextP = schedule[phaseIndex + 1];
 
   useEffect(() => {
-    configureAudio().catch(() => {});
     if (!running && phaseIndex === 0 && remaining === schedule[0]?.durationSec) {
       useEngine.getState().start();
     }
@@ -67,26 +65,6 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase?.kind, phaseIndex]);
-
-  // Last-3-seconds tick cue.
-  const lastSec = useRef<number>(-1);
-  useEffect(() => {
-    if (!soundOn || !phase) return;
-    const sec = Math.ceil(remaining);
-    if (sec !== lastSec.current) {
-      if (sec <= 3 && sec > 0) tickCue();
-      lastSec.current = sec;
-    }
-  }, [remaining, soundOn, phase]);
-
-  // Phase-change cue.
-  const prevPhaseIdx = useRef(phaseIndex);
-  useEffect(() => {
-    if (prevPhaseIdx.current !== phaseIndex && soundOn) {
-      phaseChangeCue();
-    }
-    prevPhaseIdx.current = phaseIndex;
-  }, [phaseIndex, soundOn]);
 
   if (!phase) return null;
 

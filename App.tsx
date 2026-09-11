@@ -9,6 +9,7 @@ import PrepareScreen from '@/screens/PrepareScreen';
 import WorkScreen from '@/screens/WorkScreen';
 import RestScreen from '@/screens/RestScreen';
 import ExercisesScreen from '@/screens/ExercisesScreen';
+import { useWorkoutCues } from '@/audio/useWorkoutCues';
 
 export type RootStackParamList = {
   Setup: undefined;
@@ -21,6 +22,10 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  // Mounted exactly once, for the app's whole lifetime — see the doc
+  // comment on useWorkoutCues for why this can't live in RuntimeScreen.
+  useWorkoutCues();
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
