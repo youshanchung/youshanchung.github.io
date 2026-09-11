@@ -17,6 +17,7 @@ import { t } from '@/i18n/strings';
 import { useSettings } from '@/state/settingsStore';
 import { useWorkout } from '@/state/workoutStore';
 import { useEngine, totalSeconds, buildSchedule } from '@/state/timerEngine';
+import { primeAudio } from '@/audio/beeps';
 import { fmtMMSS } from '@/utils/format';
 import type { RootStackParamList } from '../../App';
 
@@ -47,6 +48,9 @@ export default function SetupScreen() {
   const firstEx = workout.exercises[0];
 
   const onStart = async () => {
+    // Fire immediately on the tap itself (not awaited) so browsers associate
+    // the audio unlock with this user gesture, before any other await runs.
+    primeAudio();
     if (workout.exercises.length === 0) {
       Alert.alert(
         lang === 'zh' ? '無運動項目' : 'No exercises',
