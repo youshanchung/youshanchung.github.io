@@ -75,10 +75,6 @@ type EngineState = {
   anchorMs: number;        // wall-clock time when current countdown started
   anchorRemaining: number; // remaining value at that anchor (post-pause aware)
   intervalId: ReturnType<typeof setInterval> | null;
-  // RuntimeScreen remounts on every phase transition (each phase is a
-  // different route), so a one-shot flag like "have we announced halfway
-  // yet" can't live in component state — it has to live here instead.
-  halfwayAnnounced: boolean;
 
   load: (w: Workout) => void;
   start: () => void;
@@ -86,7 +82,6 @@ type EngineState = {
   resume: () => void;
   skip: () => void;
   reset: () => void;
-  markHalfwayAnnounced: () => void;
   _tick: () => void;
 };
 
@@ -101,7 +96,6 @@ export const useEngine = create<EngineState>((set, get) => ({
   anchorMs: 0,
   anchorRemaining: 0,
   intervalId: null,
-  halfwayAnnounced: false,
 
   load(w) {
     const schedule = buildSchedule(w);
@@ -113,12 +107,7 @@ export const useEngine = create<EngineState>((set, get) => ({
       running: false,
       anchorMs: 0,
       anchorRemaining: 0,
-      halfwayAnnounced: false,
     });
-  },
-
-  markHalfwayAnnounced() {
-    set({ halfwayAnnounced: true });
   },
 
   start() {
@@ -183,7 +172,6 @@ export const useEngine = create<EngineState>((set, get) => ({
       intervalId: null,
       anchorMs: 0,
       anchorRemaining: 0,
-      halfwayAnnounced: false,
     });
   },
 

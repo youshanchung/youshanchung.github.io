@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useEngine, totalSeconds } from '@/state/timerEngine';
+import { useEngine } from '@/state/timerEngine';
 import { useSettings } from '@/state/settingsStore';
 import {
   configureAudio,
@@ -27,9 +27,6 @@ export function useWorkoutCues() {
   const schedule = useEngine((s) => s.schedule);
   const phaseIndex = useEngine((s) => s.phaseIndex);
   const remaining = useEngine((s) => s.remaining);
-  const totalRemaining = useEngine((s) => s.totalRemaining);
-  const halfwayAnnounced = useEngine((s) => s.halfwayAnnounced);
-  const markHalfwayAnnounced = useEngine((s) => s.markHalfwayAnnounced);
   const soundOn = useSettings((s) => s.soundOn);
   const lang = useSettings((s) => s.lang);
 
@@ -60,17 +57,22 @@ export function useWorkoutCues() {
     }
   }, [remaining, soundOn, schedule, phaseIndex, lang]);
 
-  // Halfway-there voice cue: fires once for the whole workout, at 50% of
-  // total elapsed time. `halfwayAnnounced` lives in the engine store (reset
-  // by load()/reset()) so a fresh run can announce it again.
+  // Halfway-there voice cue: fires once per 'work' phase (every exercise,
+  // every cycle — not once for the whole workout), when remaining crosses
+  // 50% of THAT exercise's own duration. Same `<=` + per-phaseIndex-guard
+  // pattern as the countdown effect above, for the same reason: resilient to
+  // a throttled/backgrounded tab skipping past the exact midpoint tick.
+  const halfwayFiredFor = useRef<number>(-1);
   useEffect(() => {
-    if (!soundOn || halfwayAnnounced || schedule.length === 0) return;
-    const total = totalSeconds(schedule);
-    if (total > 0 && totalRemaining <= total / 2) {
-      markHalfwayAnnounced();
+    if (!soundOn || schedule.length === 0 || phaseIndex >= schedule.length) return;
+    const phase = schedule[phaseIndex];
+    if (phase.kind !== 'work') return;
+    const midpoint = phase.durationSec / 2;
+    if (remaining <= midpoint && halfwayFiredFor.current !== phaseIndex) {
+      halfwayFiredFor.current = phaseIndex;
       playHalfwayCue(lang);
     }
-  }, [totalRemaining, soundOn, halfwayAnnounced, schedule, lang, markHalfwayAnnounced]);
+  }, [remaining, soundOn, schedule, phaseIndex, lang]);
 
   // Workout-finished voice cue: fires once when the schedule runs out.
   // `hasFired` resets to false every time phaseIndex is back in valid range,
