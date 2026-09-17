@@ -1,72 +1,51 @@
 /**
- * Voice cue manager.
+ * Voice cue manager — audio-sprite design.
  *
- * Four workout milestones each get a short pre-recorded human-voice line, in
- * both languages (assets/sounds/*.wav — synthesized once via Windows SAPI,
- * female voices: Zira for English, Hanhan for Traditional Chinese):
- *   - beforeStart: "Three, two, one, go!" — last 3s before any 'work' phase
- *   - halfway:     "Halfway there."       — once, at 50% of total workout time
- *   - beforeRest:  "Three, two, one, rest!" — last 3s before 'rest'/'cycleRest'
- *   - finished:    "Workout finished."    — once, when the schedule ends
+ * All four workout milestones, both languages, live as segments inside ONE
+ * combined file (assets/sounds/cues.wav — see cueSprite.ts for the offset/
+ * duration of each segment), played through a SINGLE Audio.Sound/<audio>
+ * element by seeking + playing + pausing at the right offsets.
  *
- * Haptics still fire alongside on native (silent no-op on web, same as
- * before — there's no vibration API exposed to browsers).
+ * This replaces an earlier version that loaded each of the 8 clips as its
+ * own separate Audio.Sound (its own underlying <audio> element). iOS
+ * Safari's audio-unlock is per-element: a user gesture (the Start button tap)
+ * has to durably unlock EVERY element that will ever play without a gesture
+ * later. Priming 8 separate elements from one tap turned out to only
+ * reliably unlock one or two of them in practice — everything else stayed
+ * silent all workout, for every cycle, and halfway/finished never played.
+ * With one element, there's only one thing to unlock, and once it's unlocked
+ * it stays unlocked for the rest of the session regardless of how much later
+ * a given cue fires.
+ *
+ * Haptics still fire alongside on native (silent no-op on web — there's no
+ * vibration API exposed to browsers).
  */
 
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import type { Lang } from '@/i18n/strings';
+import { CUE_SPRITE } from './cueSprite';
 
 type CueKey = 'beforeStart' | 'halfway' | 'beforeRest' | 'finished';
 
-// Metro needs `require()` calls to look statically resolvable, so this can't
-// be built from a template string — spell out all 8 explicitly.
-const CUE_FILES: Record<CueKey, Record<Lang, number>> = {
-  beforeStart: {
-    en: require('../../assets/sounds/before_start_en.wav'),
-    zh: require('../../assets/sounds/before_start_zh.wav'),
-  },
-  halfway: {
-    en: require('../../assets/sounds/halfway_en.wav'),
-    zh: require('../../assets/sounds/halfway_zh.wav'),
-  },
-  beforeRest: {
-    en: require('../../assets/sounds/before_rest_en.wav'),
-    zh: require('../../assets/sounds/before_rest_zh.wav'),
-  },
-  finished: {
-    en: require('../../assets/sounds/finished_en.wav'),
-    zh: require('../../assets/sounds/finished_zh.wav'),
-  },
-};
-
 let audioModeConfigured = false;
-const soundCache = new Map<string, Audio.Sound>(); // key: `${cue}:${lang}`
-let loadingAll: Promise<void> | null = null;
+let sound: Audio.Sound | null = null;
+let loadingPromise: Promise<void> | null = null;
+let stopTimer: ReturnType<typeof setTimeout> | null = null;
 
-function cacheKey(cue: CueKey, lang: Lang) {
-  return `${cue}:${lang}`;
-}
-
-async function ensureSoundsLoaded() {
-  if (loadingAll) return loadingAll;
-  loadingAll = (async () => {
-    const cues = Object.keys(CUE_FILES) as CueKey[];
-    const langs: Lang[] = ['en', 'zh'];
-    await Promise.all(
-      cues.flatMap((cue) =>
-        langs.map(async (lang) => {
-          try {
-            const { sound } = await Audio.Sound.createAsync(CUE_FILES[cue][lang]);
-            soundCache.set(cacheKey(cue, lang), sound);
-          } catch {
-            // That one clip stays silent; the rest still work.
-          }
-        })
-      )
-    );
-  })();
-  return loadingAll;
+async function ensureLoaded() {
+  if (sound) return;
+  if (!loadingPromise) {
+    loadingPromise = (async () => {
+      try {
+        const { sound: s } = await Audio.Sound.createAsync(require('../../assets/sounds/cues.wav'));
+        sound = s;
+      } catch {
+        // `sound` stays null; every playback call below becomes a no-op.
+      }
+    })();
+  }
+  await loadingPromise;
 }
 
 export async function configureAudio() {
@@ -84,34 +63,51 @@ export async function configureAudio() {
       // not fatal
     }
   }
-  await ensureSoundsLoaded();
+  await ensureLoaded();
+}
+
+async function playSegment({ offsetMs, durationMs }: { offsetMs: number; durationMs: number }) {
+  if (!sound) return;
+  try {
+    if (stopTimer) {
+      clearTimeout(stopTimer);
+      stopTimer = null;
+    }
+    await sound.setPositionAsync(offsetMs);
+    await sound.playAsync();
+    // There's no natural end-of-segment event mid-file, so schedule our own
+    // stop — a little past the segment's real duration so we don't clip its
+    // tail, but well before the next segment (which starts after a silence
+    // gap) would otherwise start bleeding through.
+    stopTimer = setTimeout(() => {
+      sound?.pauseAsync().catch(() => {});
+      stopTimer = null;
+    }, durationMs + 80);
+  } catch {
+    // not fatal — worst case, this one cue stays silent
+  }
 }
 
 /**
- * Play every cue once, right now, then immediately stop it. Browsers only
- * allow audio playback triggered by (or very close to) a real user tap —
- * calling this from the "Start" button's onPress is meant to unlock all 8
- * clips for the rest of the workout, before the timer starts calling them on
- * its own.
+ * Play the sprite's leading true-silence segment once, right now, then stop.
+ * Calling this from the "Start" button's onPress is meant to unlock the
+ * single underlying <audio> element for the whole rest of the workout.
  *
- * Every element's play() call must fire in the *same tick* as the tap, with
- * nothing else awaited first: iOS Safari only durably unlocks an audio
- * element if its first play() lands within the real gesture, and each
- * `await` before that call pushes it further away and risks losing the
- * unlock entirely. An earlier version primed sounds one at a time in a loop
- * (mute → replay → stop → unmute, each awaited) — by the last few sounds in
- * that chain, several awaited round-trips had already passed since the tap,
- * so only the first one or two ever actually unlocked on real iOS Safari
- * (Chromium's autoplay policy is far more lenient and didn't expose this).
+ * This plays real (unmuted, full-volume) silence rather than muting the
+ * element or zeroing its volume: browsers specifically exempt muted/
+ * zero-volume playback from the autoplay-gesture requirement in the first
+ * place (that's the whole reason `<video autoplay muted>` doesn't need one),
+ * which means a muted "priming" attempt wouldn't actually grant a lasting
+ * unlock — nothing was ever restricted to unlock. Because the *content* of
+ * this segment is silence, priming stays completely inaudible while still
+ * being a fully legitimate, unlock-granting play() call.
  */
 export async function primeAudio() {
   try {
-    await ensureSoundsLoaded();
-    const sounds = Array.from(soundCache.values());
-    await Promise.all(sounds.map((s) => s.replayAsync().catch(() => {})));
-    await Promise.all(sounds.map((s) => s.stopAsync().catch(() => {})));
+    await ensureLoaded();
+    await playSegment(CUE_SPRITE.prime);
   } catch {
-    // not fatal — worst case, cues stay silent on a strict browser
+    // not fatal
   }
 }
 
@@ -119,9 +115,8 @@ async function playCue(cue: CueKey, lang: Lang) {
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   } catch {}
-  try {
-    await soundCache.get(cacheKey(cue, lang))?.replayAsync();
-  } catch {}
+  const entry = CUE_SPRITE[`${cue}:${lang}`];
+  if (entry) await playSegment(entry);
 }
 
 /** Last 3 seconds before a 'work' phase starts (first exercise, or any exercise after a rest). */

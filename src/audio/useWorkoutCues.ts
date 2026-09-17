@@ -37,15 +37,22 @@ export function useWorkoutCues() {
     configureAudio().catch(() => {});
   }, []);
 
-  // Countdown voice cue: fires once per phaseIndex, when remaining crosses
-  // the 3-second mark — "Three, two, one, go!" if the next phase is work,
+  // Countdown voice cue: fires once per phaseIndex, when remaining is within
+  // the last 3 seconds — "Three, two, one, go!" if the next phase is work,
   // "...rest!" if it's rest/cycleRest. Nothing fires for the very last work
   // interval (no next phase) — the "finished" cue covers that separately.
+  //
+  // Deliberately `sec <= 3`, not `sec === 3`: if the tab/screen was
+  // backgrounded (locked phone, app switched away) for a few seconds, iOS can
+  // throttle this effect enough that `remaining` jumps straight from, say,
+  // 5.4 to 1.2 between renders — an exact-equality check would sail past 3
+  // and never fire at all for that phase. The `countdownFiredFor` guard still
+  // limits it to once per phase either way.
   const countdownFiredFor = useRef<number>(-1);
   useEffect(() => {
     if (!soundOn || schedule.length === 0 || phaseIndex >= schedule.length) return;
     const sec = Math.ceil(remaining);
-    if (sec === 3 && countdownFiredFor.current !== phaseIndex) {
+    if (sec <= 3 && sec > 0 && countdownFiredFor.current !== phaseIndex) {
       countdownFiredFor.current = phaseIndex;
       const next = schedule[phaseIndex + 1];
       if (next?.kind === 'work') playBeforeStartCue(lang);
