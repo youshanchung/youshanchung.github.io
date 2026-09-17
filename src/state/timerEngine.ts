@@ -4,6 +4,10 @@
  *
  *   [prepare] -> for each cycle: (work, rest, work, rest, ...) -> cycleRest -> ...
  *   The final rest of the final cycle is omitted (workout ends on a work phase).
+ *   The last exercise's own rest within a cycle is also omitted whenever a
+ *   cycleRest immediately follows it — otherwise you'd get two back-to-back
+ *   "REST" screens (this exercise's rest, then the cycle rest) with no
+ *   exercise in between, which just looks like a stuck/repeated rest.
  */
 
 import { create } from 'zustand';
@@ -33,8 +37,11 @@ export function buildSchedule(w: Workout): ScheduledPhase[] {
         cycleNumber: c,
         label: ex.name,
       });
-      const isLastEverPhase = c === w.cycles && idx === w.exercises.length - 1;
-      if (!isLastEverPhase && ex.restSec > 0) {
+      const isLastExerciseInCycle = idx === w.exercises.length - 1;
+      const isLastEverPhase = c === w.cycles && isLastExerciseInCycle;
+      const cycleRestFollowsImmediately =
+        isLastExerciseInCycle && c < w.cycles && w.cycleRestSec > 0;
+      if (!isLastEverPhase && !cycleRestFollowsImmediately && ex.restSec > 0) {
         out.push({
           kind: 'rest',
           durationSec: ex.restSec,

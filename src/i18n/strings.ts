@@ -41,6 +41,7 @@ const dict = {
 
   on:              { zh: '開',                  en: 'ON' },
   off:             { zh: '關',                  en: 'OFF' },
+  varies:          { zh: '不同',                en: 'Varies' },
 } as const;
 
 export type StringKey = keyof typeof dict;

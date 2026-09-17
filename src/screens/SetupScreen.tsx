@@ -44,8 +44,16 @@ export default function SetupScreen() {
   const total = totalSeconds(buildSchedule(workout));
 
   // Header summary: show "first exercise" work/rest as the headline numbers
-  // (per-exercise editing happens on the Exercises screen).
+  // (per-exercise editing happens on the Exercises screen) — but only when
+  // every exercise actually shares that duration. Exercises can have their
+  // own work/rest times (that's the whole point of the Exercises screen), so
+  // silently showing exercise #1's numbers as if they applied to the whole
+  // workout would be actively misleading once they differ. Show "Varies"
+  // instead in that case; either way, tapping the card still opens the real
+  // per-exercise breakdown.
   const firstEx = workout.exercises[0];
+  const allWorkSame = workout.exercises.every((ex) => ex.workSec === firstEx?.workSec);
+  const allRestSame = workout.exercises.every((ex) => ex.restSec === firstEx?.restSec);
 
   const onStart = async () => {
     // Fire immediately on the tap itself (not awaited) so browsers associate
@@ -111,7 +119,7 @@ export default function SetupScreen() {
               <Text style={styles.gridLabel}>{t('workShort', lang)}</Text>
             </View>
             <Text style={[styles.gridValue, { color: Setup.accentWork }]}>
-              {firstEx ? fmtMMSS(firstEx.workSec) : '--:--'}
+              {!firstEx ? '--:--' : allWorkSame ? fmtMMSS(firstEx.workSec) : t('varies', lang)}
             </Text>
           </Pressable>
 
@@ -124,7 +132,7 @@ export default function SetupScreen() {
               <Text style={styles.gridLabel}>{t('restShort', lang)}</Text>
             </View>
             <Text style={[styles.gridValue, { color: Setup.accentRest }]}>
-              {firstEx ? fmtMMSS(firstEx.restSec) : '--:--'}
+              {!firstEx ? '--:--' : allRestSame ? fmtMMSS(firstEx.restSec) : t('varies', lang)}
             </Text>
           </Pressable>
 
