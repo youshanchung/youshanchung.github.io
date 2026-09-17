@@ -32,6 +32,19 @@ let audioModeConfigured = false;
 let sound: Audio.Sound | null = null;
 let loadingPromise: Promise<void> | null = null;
 let stopTimer: ReturnType<typeof setTimeout> | null = null;
+// Every pause+seek+play "setup" sequence for a new segment is queued through
+// this, one at a time — without it, two closely-timed calls (e.g. primeAudio
+// firing on the Start tap at the same moment the very first countdown cue's
+// trigger fires) can interleave their async steps on the shared element:
+// call A's seek can land, then call B's seek overwrites it, then call A's
+// *own* play() fires against B's (wrong) position. This was directly
+// observed: the very first two play() calls both landed at beforeStart's
+// position instead of one being at prime's position 0 as intended.
+let opQueue: Promise<void> = Promise.resolve();
+function enqueue(op: () => Promise<void>): Promise<void> {
+  opQueue = opQueue.then(op, op);
+  return opQueue;
+}
 
 async function ensureLoaded() {
   if (sound) return;
@@ -66,26 +79,36 @@ export async function configureAudio() {
   await ensureLoaded();
 }
 
-async function playSegment({ offsetMs, durationMs }: { offsetMs: number; durationMs: number }) {
-  if (!sound) return;
-  try {
-    if (stopTimer) {
-      clearTimeout(stopTimer);
-      stopTimer = null;
+function playSegment({ offsetMs, durationMs }: { offsetMs: number; durationMs: number }) {
+  return enqueue(async () => {
+    if (!sound) return;
+    try {
+      if (stopTimer) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      // Explicitly pause before seeking, even though playAsync() below would
+      // "interrupt" a still-playing previous segment anyway. If a cue's clip
+      // is still actively playing when the next one needs to start (a short
+      // work/rest interval can end before the previous ~3-4s voice line has
+      // finished), seeking + playing on an element that's mid-playback is
+      // exactly the kind of operation real iOS Safari has been known to drop
+      // silently.
+      await sound.pauseAsync().catch(() => {});
+      await sound.setPositionAsync(offsetMs);
+      await sound.playAsync();
+      // There's no natural end-of-segment event mid-file, so schedule our own
+      // stop — a little past the segment's real duration so we don't clip its
+      // tail, but well before the next segment (which starts after a silence
+      // gap) would otherwise start bleeding through.
+      stopTimer = setTimeout(() => {
+        sound?.pauseAsync().catch(() => {});
+        stopTimer = null;
+      }, durationMs + 80);
+    } catch {
+      // not fatal — worst case, this one cue stays silent
     }
-    await sound.setPositionAsync(offsetMs);
-    await sound.playAsync();
-    // There's no natural end-of-segment event mid-file, so schedule our own
-    // stop — a little past the segment's real duration so we don't clip its
-    // tail, but well before the next segment (which starts after a silence
-    // gap) would otherwise start bleeding through.
-    stopTimer = setTimeout(() => {
-      sound?.pauseAsync().catch(() => {});
-      stopTimer = null;
-    }, durationMs + 80);
-  } catch {
-    // not fatal — worst case, this one cue stays silent
-  }
+  });
 }
 
 /**
