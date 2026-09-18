@@ -40,6 +40,17 @@ export const Phase = {
     text: '#FFFFFF',
     textMuted: 'rgba(255,255,255,0.85)',
   },
+  /** Yellow "回合結束" (cycle complete) screen — deliberately a more golden
+   *  yellow than `prepare`'s orange-leaning one, so the two aren't
+   *  mistakable for each other despite both being "yellow". */
+  cycleRest: {
+    gradient: ['#FFDD57', '#F2B705'],
+    ringActive: '#FFFFFF',
+    ringTrack: 'rgba(255,255,255,0.35)',
+    cardBg: 'rgba(255,255,255,0.22)',
+    text: '#FFFFFF',
+    textMuted: 'rgba(255,255,255,0.85)',
+  },
 } as const satisfies Record<string, PhaseTheme>;
 
 /** Setup / config screen palette (light background, colored accent cards) */

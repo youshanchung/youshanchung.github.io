@@ -26,7 +26,7 @@ import * as Haptics from 'expo-haptics';
 import type { Lang } from '@/i18n/strings';
 import { CUE_SPRITE } from './cueSprite';
 
-type CueKey = 'beforeStart' | 'halfway' | 'beforeRest' | 'finished';
+type CueKey = 'beforeStart' | 'halfway' | 'beforeRest' | 'finished' | 'cycleComplete';
 
 let audioModeConfigured = false;
 let sound: Audio.Sound | null = null;
@@ -146,7 +146,9 @@ async function playCue(cue: CueKey, lang: Lang) {
 export const playBeforeStartCue = (lang: Lang) => playCue('beforeStart', lang);
 /** Once, when total elapsed time crosses 50% of the whole workout. */
 export const playHalfwayCue = (lang: Lang) => playCue('halfway', lang);
-/** Last 3 seconds before a 'rest' or 'cycleRest' phase starts. */
+/** Last 3 seconds before a plain per-exercise 'rest' phase starts. */
 export const playBeforeRestCue = (lang: Lang) => playCue('beforeRest', lang);
+/** Last 3 seconds before a 'cycleRest' phase starts (a full cycle just finished). */
+export const playCycleCompleteCue = (lang: Lang) => playCue('cycleComplete', lang);
 /** Once, when the entire schedule (all cycles) completes. */
 export const playFinishedCue = (lang: Lang) => playCue('finished', lang);

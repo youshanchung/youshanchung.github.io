@@ -18,6 +18,10 @@ import { confirmAsync } from '@/utils/alerts';
 import type { RootStackParamList } from '../../App';
 
 type PhaseKey = 'prepare' | 'work' | 'rest';
+// Visual/label state for this screen — a superset of PhaseKey (which only
+// covers the 3 navigable route names) so 'cycleRest' can get its own theme
+// and label while still routing to the same 'Rest' screen as a plain rest.
+type ThemeKey = PhaseKey | 'cycleRest';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey }) {
@@ -69,8 +73,11 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
 
   if (!phase) return null;
 
-  const themeKey: PhaseKey =
-    phase.kind === 'work' ? 'work' : phase.kind === 'prepare' ? 'prepare' : 'rest';
+  const themeKey: ThemeKey =
+    phase.kind === 'work' ? 'work'
+    : phase.kind === 'prepare' ? 'prepare'
+    : phase.kind === 'cycleRest' ? 'cycleRest'
+    : 'rest';
   const theme = Phase[themeKey];
 
   const progress = phase.durationSec > 0 ? remaining / phase.durationSec : 0;
@@ -109,7 +116,7 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
             <Text style={[styles.quitIcon, { color: theme.text }]}>✕</Text>
           </Pressable>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
-            {t(themeKey === 'prepare' ? 'prepare' : themeKey === 'work' ? 'work' : 'rest', lang)}
+            {t(themeKey, lang)}
           </Text>
           <Text style={[styles.quitIcon, { opacity: 0 }]}>✕</Text>
         </View>
@@ -163,7 +170,7 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
             thickness={10}
           >
             <Text style={[styles.phaseSmall, { color: theme.text }]}>
-              {t(themeKey === 'prepare' ? 'prepare' : themeKey === 'work' ? 'work' : 'rest', lang)}
+              {t(themeKey, lang)}
             </Text>
             <Text style={[styles.bigTime, { color: theme.text }]}>{fmtMMSS(remaining)}</Text>
             {themeKey !== 'prepare' && (

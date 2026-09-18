@@ -6,6 +6,7 @@ import {
   playBeforeStartCue,
   playHalfwayCue,
   playBeforeRestCue,
+  playCycleCompleteCue,
   playFinishedCue,
 } from './beeps';
 
@@ -36,8 +37,9 @@ export function useWorkoutCues() {
 
   // Countdown voice cue: fires once per phaseIndex, when remaining is within
   // the last 3 seconds — "Three, two, one, go!" if the next phase is work,
-  // "...rest!" if it's rest/cycleRest. Nothing fires for the very last work
-  // interval (no next phase) — the "finished" cue covers that separately.
+  // "...rest!" for a plain per-exercise rest, "...cycle complete!" if a full
+  // cycle just finished. Nothing fires for the very last work interval (no
+  // next phase) — the "finished" cue covers that separately.
   //
   // Deliberately `sec <= 3`, not `sec === 3`: if the tab/screen was
   // backgrounded (locked phone, app switched away) for a few seconds, iOS can
@@ -53,7 +55,8 @@ export function useWorkoutCues() {
       countdownFiredFor.current = phaseIndex;
       const next = schedule[phaseIndex + 1];
       if (next?.kind === 'work') playBeforeStartCue(lang);
-      else if (next?.kind === 'rest' || next?.kind === 'cycleRest') playBeforeRestCue(lang);
+      else if (next?.kind === 'cycleRest') playCycleCompleteCue(lang);
+      else if (next?.kind === 'rest') playBeforeRestCue(lang);
     }
   }, [remaining, soundOn, schedule, phaseIndex, lang]);
 

@@ -10,7 +10,7 @@ const dict = {
   prepare:         { zh: '準備',                en: 'GET READY' },
   work:            { zh: '運動',                en: 'WORK' },
   rest:            { zh: '休息',                en: 'REST' },
-  cycleRest:       { zh: '回合間休息',          en: 'CYCLE REST' },
+  cycleRest:       { zh: '回合結束',            en: 'CYCLE COMPLETE' },
   done:            { zh: '完成！',              en: 'DONE!' },
 
   routine:         { zh: '例行設定',            en: 'Routine' },
