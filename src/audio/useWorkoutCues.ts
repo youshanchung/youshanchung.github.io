@@ -77,6 +77,32 @@ export function useWorkoutCues() {
     }
   }, [remaining, soundOn, schedule, phaseIndex, lang]);
 
+  // The two refs above are keyed on phaseIndex alone, and phaseIndex resets
+  // to 0 every time a workout is (re)started — but the refs themselves live
+  // for the app's entire lifetime, so a stale value from a PREVIOUS run can
+  // wrongly suppress a cue in the NEW one. E.g.: quit during phase 1, before
+  // phase 1's own countdown fired -> countdownFiredFor is still 0 (from
+  // phase 0's prepare countdown) -> restart -> phase 0 comes around again ->
+  // guard sees "already fired for phase 0" and wrongly skips it.
+  //
+  // First attempt here watched "phaseIndex went backward", but that misses
+  // the case actually reported: quitting DURING phase 0 itself (before it
+  // ever advances past 0) leaves phaseIndex sitting at 0 the whole time —
+  // it never goes backward because it never went anywhere. The reliable
+  // signal instead is the `schedule` array's identity: load() (called every
+  // time "Start" is tapped) always runs buildSchedule() and produces a
+  // brand-new array, even if the numbers are identical to last time —
+  // unlike phaseIndex, this changes on every single restart, regardless of
+  // how far the previous run got.
+  const prevScheduleForResetRef = useRef(schedule);
+  useEffect(() => {
+    if (schedule !== prevScheduleForResetRef.current) {
+      countdownFiredFor.current = -1;
+      halfwayFiredFor.current = -1;
+      prevScheduleForResetRef.current = schedule;
+    }
+  }, [schedule]);
+
   // Workout-finished voice cue: fires once when the schedule runs out.
   // `hasFired` resets to false every time phaseIndex is back in valid range,
   // so re-running the same loaded workout (reset() + start() again) can fire
