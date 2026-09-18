@@ -126,12 +126,14 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
           <Pressable onPress={onQuit} hitSlop={10}>
             <Text style={[styles.quitIcon, { color: theme.text }]}>✕</Text>
           </Pressable>
-          <Text
-            style={[styles.headerTitle, { color: theme.text }]}
-            onLongPress={onShowAudioLog}
-          >
-            {t(themeKey, lang)}
-          </Text>
+          <Pressable onLongPress={onShowAudioLog} delayLongPress={600}>
+            <Text
+              selectable={false}
+              style={[styles.headerTitle, { color: theme.text, userSelect: 'none' } as any]}
+            >
+              {t(themeKey, lang)}
+            </Text>
+          </Pressable>
           <Text style={[styles.quitIcon, { opacity: 0 }]}>✕</Text>
         </View>
 
@@ -188,11 +190,16 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
             </Text>
             <Text style={[styles.bigTime, { color: theme.text }]}>{fmtMMSS(remaining)}</Text>
             {themeKey !== 'prepare' && (
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalIcon, { color: theme.text }]}>⏱</Text>
-                <Text style={[styles.totalText, { color: theme.text }]}>
-                  {fmtMMSS(totalRemaining)}
+              <View style={styles.totalWrap}>
+                <Text style={[styles.totalLabel, { color: theme.textMuted }]}>
+                  {t('totalRemaining', lang)}
                 </Text>
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalIcon, { color: theme.text }]}>⏱</Text>
+                  <Text style={[styles.totalText, { color: theme.text }]}>
+                    {fmtMMSS(totalRemaining)}
+                  </Text>
+                </View>
               </View>
             )}
           </ProgressRing>
@@ -288,7 +295,9 @@ const styles = StyleSheet.create({
   ringWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   phaseSmall: { fontSize: 18, fontWeight: '500', marginBottom: 4 },
   bigTime: { fontSize: 72, fontWeight: '700', letterSpacing: 1 },
-  totalRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  totalWrap: { alignItems: 'center', marginTop: 6 },
+  totalLabel: { fontSize: 12, marginBottom: 2 },
+  totalRow: { flexDirection: 'row', alignItems: 'center' },
   totalIcon: { fontSize: 14, marginRight: 4 },
   totalText: { fontSize: 18, fontWeight: '600' },
   bottomLabel: { alignItems: 'center', marginBottom: Spacing.lg },

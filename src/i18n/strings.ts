@@ -17,7 +17,12 @@ const dict = {
   loadLast:        { zh: '載入前次鍛鍊',        en: 'Load last workout' },
   workShort:       { zh: '運動',                en: 'Work' },
   restShort:       { zh: '休息',                en: 'Rest' },
-  exercises:       { zh: '運動',                en: 'Exercises' },
+  // Deliberately NOT "運動" here even though that's the natural translation —
+  // the 'work' phase name above is already "運動", and reusing the same word
+  // for "which exercise number am I on" made this stat card look like it was
+  // supposed to track the current phase (work vs rest) and just never
+  // updated. "動作" (exercise/movement) reads distinctly from the phase name.
+  exercises:       { zh: '動作',                en: 'Exercises' },
   cycles:          { zh: '回合',                en: 'Cycles' },
   cycleResetTime:  { zh: '重設回合',            en: 'Cycle Rest' },
   sound:           { zh: '聲音',                en: 'Sound' },
