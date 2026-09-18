@@ -46,6 +46,21 @@ function enqueue(op: () => Promise<void>): Promise<void> {
   return opQueue;
 }
 
+// A rolling log of the last few cue attempts, so a real-device failure that
+// never reproduces in (Chromium-only) testing can at least be inspected by
+// the person it actually happened to — see getAudioDebugLog() and the
+// long-press-the-header-title diagnostic in RuntimeScreen.
+const debugLog: string[] = [];
+function logAttempt(label: string, status: string, err?: unknown) {
+  const time = new Date().toTimeString().slice(0, 8) + '.' + new Date().getMilliseconds().toString().padStart(3, '0');
+  const errText = err instanceof Error ? `: ${err.message}` : err ? `: ${String(err)}` : '';
+  debugLog.push(`${time}  ${label} -> ${status}${errText}`);
+  if (debugLog.length > 40) debugLog.shift();
+}
+export function getAudioDebugLog(): string[] {
+  return [...debugLog];
+}
+
 async function ensureLoaded() {
   if (sound) return;
   if (!loadingPromise) {
@@ -79,34 +94,51 @@ export async function configureAudio() {
   await ensureLoaded();
 }
 
-function playSegment({ offsetMs, durationMs }: { offsetMs: number; durationMs: number }) {
+async function attemptSegment(offsetMs: number, durationMs: number) {
+  if (!sound) return;
+  if (stopTimer) {
+    clearTimeout(stopTimer);
+    stopTimer = null;
+  }
+  // Explicitly pause before seeking, even though playAsync() below would
+  // "interrupt" a still-playing previous segment anyway. If a cue's clip is
+  // still actively playing when the next one needs to start (a short
+  // work/rest interval can end before the previous ~3-4s voice line has
+  // finished), seeking + playing on an element that's mid-playback is
+  // exactly the kind of operation real iOS Safari has been known to drop
+  // silently.
+  await sound.pauseAsync().catch(() => {});
+  await sound.setPositionAsync(offsetMs);
+  await sound.playAsync();
+  // There's no natural end-of-segment event mid-file, so schedule our own
+  // stop — a little past the segment's real duration so we don't clip its
+  // tail, but well before the next segment (which starts after a silence
+  // gap) would otherwise start bleeding through.
+  stopTimer = setTimeout(() => {
+    sound?.pauseAsync().catch(() => {});
+    stopTimer = null;
+  }, durationMs + 80);
+}
+
+function playSegment({ offsetMs, durationMs }: { offsetMs: number; durationMs: number }, label: string) {
   return enqueue(async () => {
-    if (!sound) return;
     try {
-      if (stopTimer) {
-        clearTimeout(stopTimer);
-        stopTimer = null;
+      await attemptSegment(offsetMs, durationMs);
+      logAttempt(label, 'ok');
+    } catch (e) {
+      // Real iOS Safari can reject play() with AbortError when a rapid
+      // pause->play sequence interrupts an in-flight play request — a
+      // pattern Chromium tolerates but Safari doesn't, so it never shows up
+      // in this project's (Chromium-only) test coverage. One retry after a
+      // short beat clears it in the common case; if it fails twice, this
+      // one cue stays silent rather than risk a longer stall.
+      await new Promise((r) => setTimeout(r, 60));
+      try {
+        await attemptSegment(offsetMs, durationMs);
+        logAttempt(label, 'ok on retry');
+      } catch (e2) {
+        logAttempt(label, 'failed', e2);
       }
-      // Explicitly pause before seeking, even though playAsync() below would
-      // "interrupt" a still-playing previous segment anyway. If a cue's clip
-      // is still actively playing when the next one needs to start (a short
-      // work/rest interval can end before the previous ~3-4s voice line has
-      // finished), seeking + playing on an element that's mid-playback is
-      // exactly the kind of operation real iOS Safari has been known to drop
-      // silently.
-      await sound.pauseAsync().catch(() => {});
-      await sound.setPositionAsync(offsetMs);
-      await sound.playAsync();
-      // There's no natural end-of-segment event mid-file, so schedule our own
-      // stop — a little past the segment's real duration so we don't clip its
-      // tail, but well before the next segment (which starts after a silence
-      // gap) would otherwise start bleeding through.
-      stopTimer = setTimeout(() => {
-        sound?.pauseAsync().catch(() => {});
-        stopTimer = null;
-      }, durationMs + 80);
-    } catch {
-      // not fatal — worst case, this one cue stays silent
     }
   });
 }
@@ -128,7 +160,7 @@ function playSegment({ offsetMs, durationMs }: { offsetMs: number; durationMs: n
 export async function primeAudio() {
   try {
     await ensureLoaded();
-    await playSegment(CUE_SPRITE.prime);
+    await playSegment(CUE_SPRITE.prime, 'prime');
   } catch {
     // not fatal
   }
@@ -138,8 +170,9 @@ async function playCue(cue: CueKey, lang: Lang) {
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   } catch {}
-  const entry = CUE_SPRITE[`${cue}:${lang}`];
-  if (entry) await playSegment(entry);
+  const label = `${cue}:${lang}`;
+  const entry = CUE_SPRITE[label];
+  if (entry) await playSegment(entry, label);
 }
 
 /** Last 3 seconds before a 'work' phase starts (first exercise, or any exercise after a rest). */

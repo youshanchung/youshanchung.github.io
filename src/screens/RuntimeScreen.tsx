@@ -14,7 +14,8 @@ import { fmtMMSS } from '@/utils/format';
 import { t } from '@/i18n/strings';
 import { useSettings } from '@/state/settingsStore';
 import { useEngine } from '@/state/timerEngine';
-import { confirmAsync } from '@/utils/alerts';
+import { confirmAsync, alertAsync } from '@/utils/alerts';
+import { getAudioDebugLog } from '@/audio/beeps';
 import type { RootStackParamList } from '../../App';
 
 type PhaseKey = 'prepare' | 'work' | 'rest';
@@ -108,6 +109,16 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
     }
   };
 
+  // Hidden diagnostic: long-press the phase title to see the last ~40 voice
+  // cue attempts (success/fail, with the error if any). Not meant to be
+  // discoverable during normal use — it exists so a cue that goes silent on
+  // a real device (something that has repeatedly failed to reproduce in
+  // testing) leaves a screenshot-able trail instead of just vanishing.
+  const onShowAudioLog = () => {
+    const log = getAudioDebugLog();
+    alertAsync('Audio log', log.length ? log.join('\n') : '(empty)');
+  };
+
   return (
     <LinearGradient colors={theme.gradient} style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
@@ -115,7 +126,10 @@ export default function RuntimeScreen({ expectedKind }: { expectedKind: PhaseKey
           <Pressable onPress={onQuit} hitSlop={10}>
             <Text style={[styles.quitIcon, { color: theme.text }]}>✕</Text>
           </Pressable>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>
+          <Text
+            style={[styles.headerTitle, { color: theme.text }]}
+            onLongPress={onShowAudioLog}
+          >
             {t(themeKey, lang)}
           </Text>
           <Text style={[styles.quitIcon, { opacity: 0 }]}>✕</Text>
